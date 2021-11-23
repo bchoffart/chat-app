@@ -1,25 +1,123 @@
-import logo from './logo.svg';
+import React, {useState, useRef} from 'react';
 import './App.css';
 
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
+import "firebase/compat/auth";
+
+import { useAuthState } from 'react-firebase-hooks/auth';
+import { useCollectionData } from 'react-firebase-hooks/firestore';
+
+firebase.initializeApp({
+  apiKey: "AIzaSyBQwQcBAtQvnJnC7BFp43OJPWt2Wx__koQ",
+  authDomain: "final-chatbox-185c7.firebaseapp.com",
+  projectId: "final-chatbox-185c7",
+  storageBucket: "final-chatbox-185c7.appspot.com",
+  messagingSenderId: "390617439551",
+  appId: "1:390617439551:web:d7da42e98709a1836d878a",
+  measurementId: "G-NVQH88S3ZQ"
+});
+
+const auth = firebase.auth();
+const firestore = firebase.firestore();
+
 function App() {
+
+  const [user] = useAuthState(auth);
+
   return (
     <div className="App">
+
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1 className="heading">Chat coquin</h1>
+        <SignOut />
       </header>
+
+      <section>
+        {user ? <ChatRoom /> : <SignIn />}
+      </section>
+
     </div>
   );
+}
+
+function SignIn() {
+
+  const signInWithGoogle = () => {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider);
+  }
+
+  return (
+    <button onClick={signInWithGoogle}>Sign in with Google</button>
+  );
+
+}
+
+function SignOut() {
+
+  return auth.currentUser && (
+    <button onClick={() => auth.signOut()}>Sign Out</button>
+  );
+
+}
+
+function ChatRoom() {
+
+  const messagesRef = firestore.collection('messages');
+  const query = messagesRef.orderBy('createdAt').limit(500);
+
+  const dummy = useRef();
+
+  const [messages] = useCollectionData(query, {idField: 'id'});
+  
+  const [formValue, setFormValue] = useState('');
+
+  const sendMessage = async(e) => {
+    e.preventDefault();
+
+    const { uid, photoURL } = auth.currentUser;
+
+    await messagesRef.add({
+      text: formValue,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      uid,
+      photoURL
+    });
+
+    setFormValue('');
+
+    dummy.current.scrollIntoView({ behavior: 'smooth'});
+  }
+  
+  return (
+    <div>
+      <div id="messages">
+        {messages && messages.map(msg => <ChatMessage key={msg.id} message={msg}/>)}
+      </div>
+      <div ref={dummy}></div>
+      <div>
+        <form onSubmit={sendMessage}>
+          <input value={formValue} onChange={(e) => setFormValue(e.target.value)} />
+          <button type="submit">SEND</button>
+        </form>
+      </div>
+    </div>
+  )
+
+}
+
+function ChatMessage(props) {
+  const { text, uid, photoURL } = props.message;
+
+  const messageClass = uid === auth.currentUser.uid ? 'sent' : 'received';
+
+  return (
+    <div className={`message ${messageClass}`}>
+      <img src={photoURL} />
+      <p>{text}</p>
+    </div>
+  )
 }
 
 export default App;
